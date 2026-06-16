@@ -1,0 +1,1395 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+
+-- Safe root part retrieval
+local humanoidRootPart = nil
+if character then
+    humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+end
+
+local playerGui = player:WaitForChild("PlayerGui")
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "BlackPurpleMenu"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- Create main frame with initial transparency for fade in
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.fromOffset(500, 800)
+mainFrame.Position = UDim2.new(0.5, -250, 0.5, -400)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+mainFrame.BorderSizePixel = 0
+mainFrame.BackgroundTransparency = 0
+mainFrame.Visible = true
+mainFrame.Active = true
+mainFrame.Draggable = false
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 10)
+mainCorner.Parent = mainFrame
+
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(128, 0, 255)
+stroke.Thickness = 2
+stroke.Transparency = 0
+stroke.Parent = mainFrame
+
+local tabBar = Instance.new("Frame")
+tabBar.Name = "TabBar"
+tabBar.Size = UDim2.fromOffset(60, 250)
+tabBar.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+tabBar.BorderSizePixel = 0
+tabBar.BackgroundTransparency = 0
+tabBar.Parent = mainFrame
+
+local tabCorner = Instance.new("UICorner")
+tabCorner.CornerRadius = UDim.new(0, 10)
+tabCorner.Parent = tabBar
+
+local tabStroke = Instance.new("UIStroke")
+tabStroke.Color = Color3.fromRGB(128, 0, 255)
+tabStroke.Thickness = 1
+tabStroke.Transparency = 0
+tabStroke.Parent = tabBar
+
+local contentFrame = Instance.new("Frame")
+contentFrame.Name = "ContentFrame"
+contentFrame.Size = UDim2.new(1, -60, 1, 0)
+contentFrame.Position = UDim2.fromOffset(60, 0)
+contentFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+contentFrame.BorderSizePixel = 0
+contentFrame.BackgroundTransparency = 0
+contentFrame.Parent = mainFrame
+
+local contentCorner = Instance.new("UICorner")
+contentCorner.CornerRadius = UDim.new(0, 10)
+contentCorner.Parent = contentFrame
+
+local contentStroke = Instance.new("UIStroke")
+contentStroke.Color = Color3.fromRGB(128, 0, 255)
+contentStroke.Thickness = 1
+contentStroke.Transparency = 0
+contentStroke.Parent = contentFrame
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 35)
+title.BackgroundTransparency = 1
+title.Text = "ROBLOX MOCHA"
+title.TextColor3 = Color3.fromRGB(180, 130, 255)
+title.TextScaled = true
+title.TextTransparency = 0
+title.Font = Enum.Font.GothamBold
+title.Parent = contentFrame
+
+local info = Instance.new("TextLabel")
+info.Size = UDim2.new(1, -10, 1, -45)
+info.Position = UDim2.fromOffset(5, 40)
+info.BackgroundTransparency = 1
+info.Text = "ROBLOX MOCHA - Rekt LOL"
+info.TextWrapped = true
+info.TextColor3 = Color3.fromRGB(200, 200, 255)
+info.TextScaled = true
+info.TextTransparency = 0
+info.Font = Enum.Font.Gotham
+info.Parent = contentFrame
+
+-- PLAYER LIST CONTAINER
+local playerListContainer = Instance.new("ScrollingFrame")
+playerListContainer.Name = "PlayerListContainer"
+playerListContainer.Size = UDim2.new(1, -20, 1, -80)
+playerListContainer.Position = UDim2.fromOffset(10, 70)
+playerListContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+playerListContainer.BackgroundTransparency = 0.3
+playerListContainer.BorderSizePixel = 0
+playerListContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+playerListContainer.ScrollBarThickness = 8
+playerListContainer.ScrollBarImageColor3 = Color3.fromRGB(128, 0, 255)
+playerListContainer.Visible = false
+playerListContainer.Parent = contentFrame
+
+local playerListCorner = Instance.new("UICorner")
+playerListCorner.CornerRadius = UDim.new(0, 8)
+playerListCorner.Parent = playerListContainer
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.Name = "ListLayout"
+listLayout.Padding = UDim.new(0, 5)
+listLayout.SortOrder = Enum.SortOrder.Name
+listLayout.Parent = playerListContainer
+
+-- Anti's Tab Container
+local antiContainer = Instance.new("ScrollingFrame")
+antiContainer.Name = "AntiContainer"
+antiContainer.Size = UDim2.new(1, -20, 1, -80)
+antiContainer.Position = UDim2.fromOffset(10, 70)
+antiContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+antiContainer.BackgroundTransparency = 0.3
+antiContainer.BorderSizePixel = 0
+antiContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+antiContainer.ScrollBarThickness = 8
+antiContainer.ScrollBarImageColor3 = Color3.fromRGB(128, 0, 255)
+antiContainer.Visible = false
+antiContainer.Parent = contentFrame
+
+local antiCorner = Instance.new("UICorner")
+antiCorner.CornerRadius = UDim.new(0, 8)
+antiCorner.Parent = antiContainer
+
+local antiLayout = Instance.new("UIListLayout")
+antiLayout.Name = "AntiLayout"
+antiLayout.Padding = UDim.new(0, 10)
+antiLayout.SortOrder = Enum.SortOrder.LayoutOrder
+antiLayout.Parent = antiContainer
+
+-- Functions Tab Container
+local functionsContainer = Instance.new("ScrollingFrame")
+functionsContainer.Name = "FunctionsContainer"
+functionsContainer.Size = UDim2.new(1, -20, 1, -80)
+functionsContainer.Position = UDim2.fromOffset(10, 70)
+functionsContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+functionsContainer.BackgroundTransparency = 0.3
+functionsContainer.BorderSizePixel = 0
+functionsContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+functionsContainer.ScrollBarThickness = 8
+functionsContainer.ScrollBarImageColor3 = Color3.fromRGB(128, 0, 255)
+functionsContainer.Visible = false
+functionsContainer.Parent = contentFrame
+
+local functionsCorner = Instance.new("UICorner")
+functionsCorner.CornerRadius = UDim.new(0, 8)
+functionsCorner.Parent = functionsContainer
+
+local functionsLayout = Instance.new("UIListLayout")
+functionsLayout.Name = "FunctionsLayout"
+functionsLayout.Padding = UDim.new(0, 10)
+functionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+functionsLayout.Parent = functionsContainer
+
+-- ANTI FEATURES STATE
+local antiFlingEnabled = false
+local antiKillEnabled = false
+local noClipEnabled = false
+local autoSpawnPointEnabled = false
+local lastDeathPosition = nil
+local currentCharacter = character
+local currentSpeed = 16 -- Default walk speed
+
+-- GUI Visibility State
+local isVisible = true
+local fadeTween = nil
+
+-- Store original transparency values
+local originalValues = {}
+
+-- Dragging variables
+local dragging = false
+local dragInput
+local dragStart
+local startPos
+
+-- Connections
+local respawnConnection = nil
+local noclipConnection = nil
+local antiFlingConnection = nil
+local spawnConnection = nil
+local humanoidConnection = nil
+
+-- Store all UI elements for fading
+local allFadeElements = {}
+
+-- Watermark reference
+local watermark = nil
+
+-- Helper function to get current character
+local function getCharacter()
+    return player.Character or player.CharacterAdded:Wait()
+end
+
+-- Collect all UI elements and save their original values
+local function collectAllUIElements()
+    allFadeElements = {}
+    originalValues = {}
+    
+    local function addElement(element, type, originalValue)
+        table.insert(allFadeElements, {element = element, type = type, originalValue = originalValue})
+    end
+    
+    -- Main frame and its strokes
+    addElement(mainFrame, "BackgroundTransparency", mainFrame.BackgroundTransparency)
+    addElement(stroke, "Transparency", stroke.Transparency)
+    addElement(tabBar, "BackgroundTransparency", tabBar.BackgroundTransparency)
+    addElement(tabStroke, "Transparency", tabStroke.Transparency)
+    addElement(contentFrame, "BackgroundTransparency", contentFrame.BackgroundTransparency)
+    addElement(contentStroke, "Transparency", contentStroke.Transparency)
+    addElement(title, "TextTransparency", title.TextTransparency)
+    addElement(info, "TextTransparency", info.TextTransparency)
+    
+    -- Tab buttons and their strokes
+    for _, child in ipairs(tabBar:GetChildren()) do
+        if child:IsA("TextButton") then
+            addElement(child, "BackgroundTransparency", child.BackgroundTransparency)
+            addElement(child, "TextTransparency", child.TextTransparency)
+            for _, subChild in ipairs(child:GetChildren()) do
+                if subChild:IsA("UIStroke") then
+                    addElement(subChild, "Transparency", subChild.Transparency)
+                end
+            end
+        end
+    end
+    
+    -- Player list container
+    addElement(playerListContainer, "BackgroundTransparency", playerListContainer.BackgroundTransparency)
+    
+    -- Anti container
+    addElement(antiContainer, "BackgroundTransparency", antiContainer.BackgroundTransparency)
+    
+    -- Recursively collect all elements in anti container
+    local function collectRecursive(obj)
+        for _, child in ipairs(obj:GetChildren()) do
+            if child:IsA("Frame") then
+                addElement(child, "BackgroundTransparency", child.BackgroundTransparency)
+                collectRecursive(child)
+            elseif child:IsA("TextButton") then
+                addElement(child, "BackgroundTransparency", child.BackgroundTransparency)
+                addElement(child, "TextTransparency", child.TextTransparency)
+                for _, strokeChild in ipairs(child:GetChildren()) do
+                    if strokeChild:IsA("UIStroke") then
+                        addElement(strokeChild, "Transparency", strokeChild.Transparency)
+                    end
+                end
+                collectRecursive(child)
+            elseif child:IsA("TextLabel") then
+                addElement(child, "TextTransparency", child.TextTransparency)
+                collectRecursive(child)
+            elseif child:IsA("TextBox") then
+                addElement(child, "TextTransparency", child.TextTransparency)
+                for _, strokeChild in ipairs(child:GetChildren()) do
+                    if strokeChild:IsA("UIStroke") then
+                        addElement(strokeChild, "Transparency", strokeChild.Transparency)
+                    end
+                end
+                collectRecursive(child)
+            elseif child:IsA("UIStroke") then
+                addElement(child, "Transparency", child.Transparency)
+            end
+        end
+    end
+    collectRecursive(antiContainer)
+    
+    -- Functions container
+    addElement(functionsContainer, "BackgroundTransparency", functionsContainer.BackgroundTransparency)
+    collectRecursive(functionsContainer)
+    
+    -- Watermark
+    if watermark then
+        addElement(watermark, "TextTransparency", watermark.TextTransparency)
+        addElement(watermark, "BackgroundTransparency", watermark.BackgroundTransparency)
+    end
+end
+
+-- Fade In Function (Restores original values)
+local function fadeIn()
+    if fadeTween then fadeTween:Cancel() end
+    
+    -- Make GUI visible and interactable
+    mainFrame.Visible = true
+    mainFrame.Active = true
+    
+    -- Restore all elements to their original values
+    for _, item in ipairs(allFadeElements) do
+        pcall(function()
+            if item.type == "BackgroundTransparency" then
+                local tween = TweenService:Create(item.element, TweenInfo.new(0.1, Enum.EasingStyle.Linear), {
+                    BackgroundTransparency = item.originalValue
+                })
+                tween:Play()
+            elseif item.type == "TextTransparency" then
+                local tween = TweenService:Create(item.element, TweenInfo.new(0.1, Enum.EasingStyle.Linear), {
+                    TextTransparency = item.originalValue
+                })
+                tween:Play()
+            elseif item.type == "Transparency" then
+                local tween = TweenService:Create(item.element, TweenInfo.new(0.1, Enum.EasingStyle.Linear), {
+                    Transparency = item.originalValue
+                })
+                tween:Play()
+            end
+        end)
+    end
+end
+
+-- Fade Out Function (Fully hides everything)
+local function fadeOut()
+    if fadeTween then fadeTween:Cancel() end
+    
+    -- Fade all elements to transparent
+    for _, item in ipairs(allFadeElements) do
+        pcall(function()
+            if item.type == "BackgroundTransparency" then
+                local tween = TweenService:Create(item.element, TweenInfo.new(0.1, Enum.EasingStyle.Linear), {
+                    BackgroundTransparency = 1
+                })
+                tween:Play()
+            elseif item.type == "TextTransparency" then
+                local tween = TweenService:Create(item.element, TweenInfo.new(0.1, Enum.EasingStyle.Linear), {
+                    TextTransparency = 1
+                })
+                tween:Play()
+            elseif item.type == "Transparency" then
+                local tween = TweenService:Create(item.element, TweenInfo.new(0.1, Enum.EasingStyle.Linear), {
+                    Transparency = 1
+                })
+                tween:Play()
+            end
+        end)
+    end
+    
+    -- After fade, disable the frame so it can't be interacted with
+    task.wait(0.1)
+    mainFrame.Active = false
+end
+
+-- Toggle GUI Function
+local function toggleGUI()
+    if isVisible then
+        fadeOut()
+        isVisible = false
+    else
+        fadeIn()
+        isVisible = true
+    end
+end
+
+-- Dragging functions (only works when GUI is visible)
+local function setupDragging()
+    mainFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and isVisible then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    mainFrame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and isVisible then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging and isVisible then
+            local delta = input.Position - dragStart
+            mainFrame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+-- Function to set player speed
+local function setPlayerSpeed(speed)
+    currentSpeed = tonumber(speed) or 16
+    -- Clamp speed between 1 and 500
+    if currentSpeed < 1 then currentSpeed = 1 end
+    if currentSpeed > 500 then currentSpeed = 500 end
+    
+    local char = getCharacter()
+    local humanoid = char:FindFirstChild("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = currentSpeed
+        info.Text = "✓ Speed set to: " .. currentSpeed
+        task.spawn(function()
+            task.wait(0.5)
+            if antiContainer and antiContainer.Visible then
+                info.Text = "Toggle switches for protection features"
+            elseif (not antiContainer or not antiContainer.Visible) and (not playerListContainer or not playerListContainer.Visible) then
+                info.Text = "ROBLOX MOCHA - Rekt LOL"
+            end
+        end)
+    end
+end
+
+-- Track death position
+local function trackDeathPosition()
+    local char = getCharacter()
+    if not char then return end
+    
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not humanoid then return end
+    
+    if humanoidConnection then
+        humanoidConnection:Disconnect()
+    end
+    
+    humanoidConnection = humanoid.Died:Connect(function()
+        local rootPart = char:FindFirstChild("HumanoidRootPart")
+        if rootPart and autoSpawnPointEnabled then
+            lastDeathPosition = rootPart.CFrame
+            info.Text = "✓ Death position saved!"
+            task.spawn(function()
+                task.wait(0.5)
+                if antiContainer and antiContainer.Visible then
+                    info.Text = "Toggle switches for protection features"
+                end
+            end)
+        end
+    end)
+end
+
+-- INSTANT ANTI-FLING
+local function disableCollisionsInstant(char)
+    if not char then return end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+        end
+    end
+end
+
+local function enableCollisionsInstant(char)
+    if not char then return end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            part.CanCollide = true
+        end
+    end
+end
+
+local function toggleAntiFling()
+    antiFlingEnabled = not antiFlingEnabled
+    
+    if antiFlingEnabled then
+        local char = getCharacter()
+        if char then
+            disableCollisionsInstant(char)
+        end
+        
+        if antiFlingConnection then antiFlingConnection:Disconnect() end
+        antiFlingConnection = player.CharacterAdded:Connect(function(newChar)
+            disableCollisionsInstant(newChar)
+        end)
+        
+        info.Text = "✓ Anti-Fling ON"
+    else
+        if antiFlingConnection then
+            antiFlingConnection:Disconnect()
+            antiFlingConnection = nil
+        end
+        
+        local char = getCharacter()
+        if char then
+            enableCollisionsInstant(char)
+        end
+        
+        info.Text = "✗ Anti-Fling OFF"
+    end
+    
+    task.spawn(function()
+        task.wait(0.3)
+        if antiContainer and antiContainer.Visible then
+            info.Text = "Toggle switches for protection features"
+        elseif (not antiContainer or not antiContainer.Visible) and (not playerListContainer or not playerListContainer.Visible) then
+            info.Text = "ROBLOX MOCHA - Rekt LOL"
+        end
+    end)
+end
+
+-- INSTANT ANTI-KILL
+local function toggleAntiKill()
+    antiKillEnabled = not antiKillEnabled
+    
+    if antiKillEnabled then
+        local char = getCharacter()
+        if char and char:FindFirstChild("Humanoid") then
+            char.Humanoid.Health = 0
+        end
+        
+        if respawnConnection then respawnConnection:Disconnect() end
+        respawnConnection = RunService.RenderStepped:Connect(function()
+            if antiKillEnabled then
+                local char = getCharacter()
+                if char and char:FindFirstChild("Humanoid") then
+                    if char.Humanoid.Health > 0 then
+                        char.Humanoid.Health = 0
+                    end
+                end
+            end
+        end)
+        
+        info.Text = "✓ Anti-Kill ON"
+    else
+        if respawnConnection then
+            respawnConnection:Disconnect()
+            respawnConnection = nil
+        end
+        
+        info.Text = "✗ Anti-Kill OFF"
+    end
+    
+    task.spawn(function()
+        task.wait(0.3)
+        if antiContainer and antiContainer.Visible then
+            info.Text = "Toggle switches for protection features"
+        end
+    end)
+end
+
+-- AUTO-SPAWNPOINT
+local function toggleAutoSpawnPoint()
+    autoSpawnPointEnabled = not autoSpawnPointEnabled
+    
+    if autoSpawnPointEnabled then
+        trackDeathPosition()
+        
+        if spawnConnection then spawnConnection:Disconnect() end
+        spawnConnection = player.CharacterAdded:Connect(function(newChar)
+            trackDeathPosition()
+            
+            if lastDeathPosition then
+                task.wait(0.1)
+                local rootPart = newChar:FindFirstChild("HumanoidRootPart")
+                if rootPart then
+                    rootPart.CFrame = lastDeathPosition
+                    info.Text = "✓ Teleported to death location!"
+                    task.spawn(function()
+                        task.wait(0.5)
+                        if antiContainer and antiContainer.Visible then
+                            info.Text = "Toggle switches for protection features"
+                        end
+                    end)
+                end
+            end
+        end)
+        
+        info.Text = "✓ Auto-SpawnPoint ON - Tracking deaths"
+    else
+        if spawnConnection then
+            spawnConnection:Disconnect()
+            spawnConnection = nil
+        end
+        if humanoidConnection then
+            humanoidConnection:Disconnect()
+            humanoidConnection = nil
+        end
+        lastDeathPosition = nil
+        info.Text = "✗ Auto-SpawnPoint OFF"
+    end
+    
+    task.spawn(function()
+        task.wait(0.3)
+        if antiContainer and antiContainer.Visible then
+            info.Text = "Toggle switches for protection features"
+        end
+    end)
+end
+
+-- INSTANT NO-CLIP
+local function enableNoclipInstant(char)
+    if not char then return end
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+        end
+    end
+end
+
+local function toggleNoClip()
+    noClipEnabled = not noClipEnabled
+    
+    if noClipEnabled then
+        local char = getCharacter()
+        if char then
+            enableNoclipInstant(char)
+        end
+        
+        if noclipConnection then noclipConnection:Disconnect() end
+        noclipConnection = RunService.RenderStepped:Connect(function()
+            if noClipEnabled then
+                local char = getCharacter()
+                if char then
+                    for _, part in ipairs(char:GetDescendants()) do
+                        if part:IsA("BasePart") and part.CanCollide == true then
+                            part.CanCollide = false
+                        end
+                    end
+                end
+            end
+        end)
+        
+        info.Text = "✓ No-Clip ON"
+    else
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+        
+        local char = getCharacter()
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                    part.CanCollide = true
+                end
+            end
+        end
+        
+        info.Text = "✗ No-Clip OFF"
+    end
+    
+    task.spawn(function()
+        task.wait(0.3)
+        if antiContainer and antiContainer.Visible then
+            info.Text = "Toggle switches for protection features"
+        end
+    end)
+end
+
+-- CREATE SPEED SLIDER (Enter key only, no button)
+local function createSpeedSlider()
+    local container = Instance.new("Frame")
+    container.Name = "SpeedSlider"
+    container.BackgroundTransparency = 1
+    container.Size = UDim2.new(1, 0, 0, 60)
+    
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(0.4, -10, 1, 0)
+    label.Position = UDim2.fromOffset(10, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "Speed:"
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextSize = 18
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.GothamBold
+    label.Parent = container
+    
+    local description = Instance.new("TextLabel")
+    description.Name = "Description"
+    description.Size = UDim2.new(0.8, -10, 0, 20)
+    description.Position = UDim2.fromOffset(10, 35)
+    description.BackgroundTransparency = 1
+    description.TextColor3 = Color3.fromRGB(180, 130, 255)
+    description.TextSize = 12
+    description.TextXAlignment = Enum.TextXAlignment.Left
+    description.Font = Enum.Font.Gotham
+    description.Text = ""
+    description.Parent = container
+    
+    -- Create textbox frame
+    local textBoxFrame = Instance.new("Frame")
+    textBoxFrame.Name = "TextBoxFrame"
+    textBoxFrame.Size = UDim2.new(0.4, 0, 0, 40)
+    textBoxFrame.Position = UDim2.new(0.5, 0, 0.15, 0)
+    textBoxFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    textBoxFrame.BorderSizePixel = 0
+    textBoxFrame.Parent = container
+    
+    local textBoxCorner = Instance.new("UICorner")
+    textBoxCorner.CornerRadius = UDim.new(0, 8)
+    textBoxCorner.Parent = textBoxFrame
+    
+    local textBoxStroke = Instance.new("UIStroke")
+    textBoxStroke.Color = Color3.fromRGB(128, 0, 255)
+    textBoxStroke.Thickness = 1.5
+    textBoxStroke.Parent = textBoxFrame
+    
+    local textBox = Instance.new("TextBox")
+    textBox.Name = "SpeedInput"
+    textBox.Size = UDim2.new(1, -10, 1, 0)
+    textBox.Position = UDim2.fromOffset(5, 0)
+    textBox.BackgroundTransparency = 1
+    textBox.Text = "16"
+    textBox.TextColor3 = Color3.new(1, 1, 1)
+    textBox.TextSize = 16
+    textBox.TextXAlignment = Enum.TextXAlignment.Center
+    textBox.Font = Enum.Font.GothamBold
+    textBox.PlaceholderText = "Enter speed (1-500)"
+    textBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+    textBox.Parent = textBoxFrame
+    
+    -- Apply on enter key only
+    textBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local speedValue = tonumber(textBox.Text)
+            if speedValue and speedValue >= 1 and speedValue <= 500 then
+                setPlayerSpeed(speedValue)
+                textBox.Text = tostring(currentSpeed)
+            else
+                info.Text = "✗ Invalid speed! (1-500)"
+                textBox.Text = tostring(currentSpeed)
+                task.spawn(function()
+                    task.wait(0.5)
+                    if antiContainer and antiContainer.Visible then
+                        info.Text = "Toggle switches for protection features"
+                    end
+                end)
+            end
+        else
+            -- Reset textbox to current speed if they click away without pressing enter
+            textBox.Text = tostring(currentSpeed)
+        end
+    end)
+    
+    return container
+end
+
+-- CREATE ANTI TOGGLE SWITCH
+local function createAntiToggleSwitch(buttonText, toggleFunction)
+    local container = Instance.new("Frame")
+    container.Name = "Toggle_" .. buttonText:gsub("%W", "")
+    container.BackgroundTransparency = 1
+    container.Size = UDim2.new(1, 0, 0, 60)
+    
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Size = UDim2.new(0.6, -10, 1, 0)
+    label.Position = UDim2.fromOffset(10, 0)
+    label.BackgroundTransparency = 1
+    label.Text = buttonText
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextSize = 18
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.GothamBold
+    label.Parent = container
+    
+    local description = Instance.new("TextLabel")
+    description.Name = "Description"
+    description.Size = UDim2.new(0.6, -10, 0, 20)
+    description.Position = UDim2.fromOffset(10, 35)
+    description.BackgroundTransparency = 1
+    description.TextColor3 = Color3.fromRGB(180, 130, 255)
+    description.TextSize = 12
+    description.TextXAlignment = Enum.TextXAlignment.Left
+    description.Font = Enum.Font.Gotham
+    
+    if buttonText == "Anti-Fling" then
+        description.Text = ""
+    elseif buttonText == "Anti-Kill" then
+        description.Text = ""
+    elseif buttonText == "Auto-SpawnPoint" then
+        description.Text = ""
+    elseif buttonText == "No-Clip" then
+        description.Text = ""
+    end
+    
+    description.Parent = container
+    
+    local switchBg = Instance.new("Frame")
+    switchBg.Name = "SwitchBg"
+    switchBg.Size = UDim2.fromOffset(60, 30)
+    switchBg.Position = UDim2.new(1, -75, 0.5, -15)
+    switchBg.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    switchBg.BorderSizePixel = 0
+    switchBg.Parent = container
+    
+    local switchCorner = Instance.new("UICorner")
+    switchCorner.CornerRadius = UDim.new(1, 0)
+    switchCorner.Parent = switchBg
+    
+    local switchKnob = Instance.new("Frame")
+    switchKnob.Name = "SwitchKnob"
+    switchKnob.Size = UDim2.fromOffset(26, 26)
+    switchKnob.Position = UDim2.fromOffset(2, 2)
+    switchKnob.BackgroundColor3 = Color3.new(1, 1, 1)
+    switchKnob.BorderSizePixel = 0
+    switchKnob.Parent = switchBg
+    
+    local knobCorner = Instance.new("UICorner")
+    knobCorner.CornerRadius = UDim.new(1, 0)
+    knobCorner.Parent = switchKnob
+    
+    local isOn = false
+    
+    local function animateSwitch(on)
+        local targetBgColor = on and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+        local targetKnobPos = on and UDim2.fromOffset(32, 2) or UDim2.fromOffset(2, 2)
+        
+        switchBg.BackgroundColor3 = targetBgColor
+        switchKnob.Position = targetKnobPos
+    end
+    
+    local clickDetector = Instance.new("TextButton")
+    clickDetector.Name = "ClickDetector"
+    clickDetector.Size = UDim2.new(1, 0, 1, 0)
+    clickDetector.BackgroundTransparency = 1
+    clickDetector.Text = ""
+    clickDetector.Parent = container
+    
+    clickDetector.MouseButton1Click:Connect(function()
+        isOn = not isOn
+        toggleFunction()
+        animateSwitch(isOn)
+    end)
+    
+    return container
+end
+
+-- Create Anti features toggle switches
+local antiFlingSwitch = createAntiToggleSwitch("Anti-Fling", toggleAntiFling)
+local antiKillSwitch = createAntiToggleSwitch("Anti-Kill", toggleAntiKill)
+local autoSpawnPointSwitch = createAntiToggleSwitch("Auto-SpawnPoint", toggleAutoSpawnPoint)
+local noClipSwitch = createAntiToggleSwitch("No-Clip", toggleNoClip)
+
+antiFlingSwitch.Parent = antiContainer
+antiKillSwitch.Parent = antiContainer
+autoSpawnPointSwitch.Parent = antiContainer
+noClipSwitch.Parent = antiContainer
+
+-- Create Speed Slider (below No-Clip)
+local speedSlider = createSpeedSlider()
+speedSlider.Parent = antiContainer
+
+-- CREATE FUNCTION BUTTON
+local function createFunctionButton(buttonText, buttonColor, clickFunction, description)
+    local container = Instance.new("Frame")
+    container.Name = "Button_" .. buttonText:gsub("%W", "")
+    container.BackgroundTransparency = 1
+    container.Size = UDim2.new(1, 0, 0, 70)
+    
+    local button = Instance.new("TextButton")
+    button.Name = "FunctionButton"
+    button.BackgroundColor3 = buttonColor
+    button.Text = buttonText
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.TextSize = 18
+    button.Font = Enum.Font.GothamBold
+    button.AutoButtonColor = true
+    button.Size = UDim2.new(1, -20, 0, 50)
+    button.Position = UDim2.fromOffset(10, 0)
+    
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0, 8)
+    buttonCorner.Parent = button
+    
+    local buttonStroke = Instance.new("UIStroke")
+    buttonStroke.Color = Color3.fromRGB(128, 0, 255)
+    buttonStroke.Thickness = 1.5
+    buttonStroke.Parent = button
+    
+    local descLabel = Instance.new("TextLabel")
+    descLabel.Name = "Description"
+    descLabel.Size = UDim2.new(1, -20, 0, 20)
+    descLabel.Position = UDim2.fromOffset(10, 52)
+    descLabel.BackgroundTransparency = 1
+    descLabel.Text = description
+    descLabel.TextColor3 = Color3.fromRGB(180, 130, 255)
+    descLabel.TextSize = 12
+    descLabel.TextXAlignment = Enum.TextXAlignment.Center
+    descLabel.Font = Enum.Font.Gotham
+    descLabel.Parent = container
+    
+    button.Parent = container
+    
+    button.MouseButton1Click:Connect(function()
+        pcall(clickFunction)
+    end)
+    
+    -- Auto-adjust button text size based on text length
+    if #buttonText > 15 then
+        button.TextSize = 14
+    end
+    if #buttonText > 20 then
+        button.TextSize = 12
+    end
+    
+    return container
+end
+
+-- FUNCTIONS BUTTON ACTIONS WITH AUTO-RELOAD
+local function executeInfYield()
+    pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+        info.Text = "✓ Infinite Yield Executed!"
+        task.spawn(function()
+            task.wait(0.5)
+            if functionsContainer and functionsContainer.Visible then
+                info.Text = "Functions tab - Click buttons to execute"
+            end
+        end)
+    end)
+end
+
+local function rejoinGame()
+    info.Text = "✓ Rejoining and reloading script..."
+    task.spawn(function()
+        task.wait(0.5)
+        
+        -- Store current state to restore later
+        local stateToSave = {
+            antiFlingEnabled = antiFlingEnabled,
+            antiKillEnabled = antiKillEnabled,
+            noClipEnabled = noClipEnabled,
+            autoSpawnPointEnabled = autoSpawnPointEnabled,
+            currentSpeed = currentSpeed
+        }
+        
+        -- Save state to global for reload
+        _G.MenuState = stateToSave
+        
+        -- Teleport to same place
+        local ts = TeleportService
+        local placeId = game.PlaceId
+        ts:Teleport(placeId, player)
+    end)
+end
+
+local function serverSwitch()
+    info.Text = "✓ Switching servers and reloading script..."
+    task.spawn(function()
+        task.wait(0.5)
+        
+        -- Store current state to restore later
+        local stateToSave = {
+            antiFlingEnabled = antiFlingEnabled,
+            antiKillEnabled = antiKillEnabled,
+            noClipEnabled = noClipEnabled,
+            autoSpawnPointEnabled = autoSpawnPointEnabled,
+            currentSpeed = currentSpeed
+        }
+        
+        -- Save state to global for reload
+        _G.MenuState = stateToSave
+        
+        local ts = TeleportService
+        local placeId = game.PlaceId
+        pcall(function()
+            local response = game:HttpGet("https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?limit=100")
+            local data = HttpService:JSONDecode(response)
+            local servers = {}
+            if data and data.data then
+                for _, v in pairs(data.data) do
+                    if v.id ~= game.JobId then
+                        table.insert(servers, v.id)
+                    end
+                end
+            end
+            if #servers > 0 then
+                ts:TeleportToPlaceInstance(placeId, servers[math.random(1, #servers)], player)
+            else
+                ts:Teleport(placeId, player)
+            end
+        end)
+    end)
+end
+
+-- Restore state after reload
+local function restoreState()
+    if _G.MenuState then
+        task.wait(1) -- Wait for script to fully initialize
+        
+        if _G.MenuState.antiFlingEnabled then
+            toggleAntiFling()
+        end
+        if _G.MenuState.antiKillEnabled then
+            toggleAntiKill()
+        end
+        if _G.MenuState.noClipEnabled then
+            toggleNoClip()
+        end
+        if _G.MenuState.autoSpawnPointEnabled then
+            toggleAutoSpawnPoint()
+        end
+        if _G.MenuState.currentSpeed then
+            setPlayerSpeed(_G.MenuState.currentSpeed)
+        end
+        
+        _G.MenuState = nil
+    end
+end
+
+-- Create Functions buttons
+local infYieldButton = createFunctionButton("InfYield", Color3.fromRGB(156, 39, 176), executeInfYield, "")
+local rejoinButton = createFunctionButton("Rejoin", Color3.fromRGB(33, 150, 243), rejoinGame, "")
+local serverSwitchButton = createFunctionButton("Server-Switch", Color3.fromRGB(255, 87, 34), serverSwitch, "")
+
+infYieldButton.Parent = functionsContainer
+rejoinButton.Parent = functionsContainer
+serverSwitchButton.Parent = functionsContainer
+
+-- Update canvas size for containers
+local function updateCanvas(container, layoutName)
+    if not container then return end
+    local layout = container:FindFirstChild(layoutName)
+    if layout then
+        local contentHeight = 0
+        for _, child in ipairs(container:GetChildren()) do
+            if child:IsA("Frame") and (child.Name:match("Toggle_") or child.Name:match("Button_") or child.Name == "SpeedSlider") then
+                contentHeight = contentHeight + child.Size.Y.Offset + layout.Padding.Offset
+            end
+        end
+        container.CanvasSize = UDim2.new(0, 0, 0, math.max(contentHeight, container.Size.Y.Offset))
+    end
+end
+
+-- Update canvases when buttons are added
+task.defer(function()
+    updateCanvas(antiContainer, "AntiLayout")
+    updateCanvas(functionsContainer, "FunctionsLayout")
+end)
+
+-- TELEPORT FUNCTION (INSTANT)
+local function teleportToPlayer(targetPlayer)
+    if not targetPlayer then return end
+    
+    local targetCharacter = targetPlayer.Character
+    if not targetCharacter then
+        info.Text = "ERROR: No character"
+        task.spawn(function()
+            task.wait(0.5)
+            if playerListContainer and playerListContainer.Visible then
+                info.Text = "Click any name = instant teleport"
+            end
+        end)
+        return
+    end
+    
+    local targetRoot = targetCharacter:FindFirstChild("HumanoidRootPart")
+    if not targetRoot then
+        info.Text = "ERROR: No HumanoidRootPart"
+        task.spawn(function()
+            task.wait(0.5)
+            if playerListContainer and playerListContainer.Visible then
+                info.Text = "Click any name = instant teleport"
+            end
+        end)
+        return
+    end
+    
+    local localChar = player.Character
+    if not localChar then
+        info.Text = "ERROR: Character not loaded"
+        task.spawn(function()
+            task.wait(0.5)
+            if playerListContainer and playerListContainer.Visible then
+                info.Text = "Click any name = instant teleport"
+            end
+        end)
+        return
+    end
+    
+    local localRoot = localChar:FindFirstChild("HumanoidRootPart")
+    if not localRoot then
+        info.Text = "ERROR: Can't find HumanoidRootPart"
+        task.spawn(function()
+            task.wait(0.5)
+            if playerListContainer and playerListContainer.Visible then
+                info.Text = "Click any name = instant teleport"
+            end
+        end)
+        return
+    end
+    
+    localRoot.CFrame = CFrame.new(targetRoot.Position)
+    info.Text = "✓ Teleported to " .. targetPlayer.Name
+    
+    task.spawn(function()
+        task.wait(0.5)
+        if playerListContainer and playerListContainer.Visible then
+            info.Text = "Click any name = instant teleport"
+        end
+    end)
+end
+
+-- Function to create a player button
+local function createPlayerButton(playerName, playerObject)
+    local buttonContainer = Instance.new("Frame")
+    buttonContainer.Name = "Button_" .. playerName:gsub("%W", "")
+    buttonContainer.BackgroundTransparency = 1
+    buttonContainer.Size = UDim2.new(1, 0, 0, 45)
+    
+    local button = Instance.new("TextButton")
+    button.Name = "PlayerButton"
+    button.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    button.Text = playerName
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.TextScaled = true
+    button.Font = Enum.Font.GothamBold
+    button.AutoButtonColor = true
+    button.Size = UDim2.new(1, -10, 1, -5)
+    button.Position = UDim2.fromOffset(5, 2.5)
+    
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0, 8)
+    buttonCorner.Parent = button
+    
+    local buttonStroke = Instance.new("UIStroke")
+    buttonStroke.Color = Color3.fromRGB(128, 0, 255)
+    buttonStroke.Thickness = 1.5
+    buttonStroke.Parent = button
+    
+    button.Parent = buttonContainer
+    
+    button.MouseButton1Click:Connect(function()
+        teleportToPlayer(playerObject)
+    end)
+    
+    button.MouseEnter:Connect(function()
+        button.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+        info.Text = "Click to teleport to " .. playerName
+    end)
+    
+    button.MouseLeave:Connect(function()
+        button.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        if playerListContainer and playerListContainer.Visible then
+            info.Text = "Click any name = instant teleport"
+        end
+    end)
+    
+    return buttonContainer
+end
+
+-- Function to refresh the entire player list
+local playerButtons = {}
+local function refreshPlayerList()
+    local currentPlayers = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= player then
+            currentPlayers[plr.Name] = plr
+        end
+    end
+    
+    for playerName, buttonObj in pairs(playerButtons) do
+        if not currentPlayers[playerName] then
+            buttonObj:Destroy()
+            playerButtons[playerName] = nil
+        end
+    end
+    
+    for playerName, plr in pairs(currentPlayers) do
+        if not playerButtons[playerName] then
+            local newButton = createPlayerButton(playerName, plr)
+            newButton.Parent = playerListContainer
+            playerButtons[playerName] = newButton
+        end
+    end
+    
+    local layout = playerListContainer:FindFirstChild("ListLayout")
+    if layout then
+        local contentHeight = 0
+        for _, child in ipairs(playerListContainer:GetChildren()) do
+            if child:IsA("Frame") and child.Name:match("Button_") then
+                contentHeight = contentHeight + child.Size.Y.Offset + layout.Padding.Offset
+            end
+        end
+        playerListContainer.CanvasSize = UDim2.new(0, 0, 0, math.max(contentHeight, playerListContainer.Size.Y.Offset))
+    end
+end
+
+-- Player join/leave handling
+Players.PlayerAdded:Connect(function(newPlayer)
+    if newPlayer ~= player then
+        refreshPlayerList()
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(leavingPlayer)
+    if leavingPlayer ~= player then
+        refreshPlayerList()
+    end
+end)
+
+-- Initial population
+task.wait(0.1)
+refreshPlayerList()
+
+-- Periodic refresh
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if playerListContainer and playerListContainer.Visible then
+            refreshPlayerList()
+        end
+    end
+end)
+
+-- Create Watermark (shortened - will be added to fade elements)
+watermark = Instance.new("TextLabel")
+watermark.Name = "Watermark"
+watermark.Size = UDim2.fromOffset(120, 20)
+watermark.AnchorPoint = Vector2.new(1, 1)
+watermark.Position = UDim2.new(1, -5, 1, -5)
+watermark.BackgroundTransparency = 1
+watermark.Text = "ROBLOX MOCHA"
+watermark.TextColor3 = Color3.fromRGB(128, 0, 255)
+watermark.TextScaled = true
+watermark.TextTransparency = 0
+watermark.Font = Enum.Font.GothamBold
+watermark.Parent = contentFrame
+
+-- Tab definitions
+local tabs = {
+    {
+        Name = "Thug",
+        Title = "ROBLOX MOCHA",
+        Content = "ROBLOX MOCHA - Rekt LOL",
+        HasPlayerList = false,
+        HasAnti = false,
+        HasFunctions = false
+    },
+    {
+        Name = "Player",
+        Title = "Player Tab",
+        Content = "Click any name = instant teleport",
+        HasPlayerList = true,
+        HasAnti = false,
+        HasFunctions = false
+    },
+    {
+        Name = "Anti's",
+        Title = "Anti's",
+        Content = "Toggle switches for protection features",
+        HasPlayerList = false,
+        HasAnti = true,
+        HasFunctions = false
+    },
+    {
+        Name = "Functions",
+        Title = "Functions",
+        Content = "Click buttons to execute functions",
+        HasPlayerList = false,
+        HasAnti = false,
+        HasFunctions = true
+    },
+    {
+        Name = "Credits",
+        Title = "Credits",
+        Content = "32j6 on discord",
+        HasPlayerList = false,
+        HasAnti = false,
+        HasFunctions = false
+    }
+}
+
+for i, tab in ipairs(tabs) do
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.fromOffset(50, 40)
+    button.Position = UDim2.fromOffset(5, 5 + ((i - 1) * 47))
+    button.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    button.Text = tab.Name
+    button.TextColor3 = Color3.fromRGB(180, 130, 255)
+    button.TextScaled = true
+    button.Font = Enum.Font.GothamBold
+    button.Parent = tabBar
+
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0, 8)
+    buttonCorner.Parent = button
+
+    local buttonStroke = Instance.new("UIStroke")
+    buttonStroke.Color = Color3.fromRGB(128, 0, 255)
+    buttonStroke.Thickness = 1
+    buttonStroke.Parent = button
+
+    button.MouseButton1Click:Connect(function()
+        title.Text = tab.Title
+        info.Text = tab.Content
+        
+        if tab.HasPlayerList then
+            playerListContainer.Visible = true
+            antiContainer.Visible = false
+            functionsContainer.Visible = false
+            info.Visible = false
+            refreshPlayerList()
+        elseif tab.HasAnti then
+            playerListContainer.Visible = false
+            antiContainer.Visible = true
+            functionsContainer.Visible = false
+            info.Visible = false
+            updateCanvas(antiContainer, "AntiLayout")
+        elseif tab.HasFunctions then
+            playerListContainer.Visible = false
+            antiContainer.Visible = false
+            functionsContainer.Visible = true
+            info.Visible = false
+            updateCanvas(functionsContainer, "FunctionsLayout")
+        else
+            playerListContainer.Visible = false
+            antiContainer.Visible = false
+            functionsContainer.Visible = false
+            info.Visible = true
+        end
+    end)
+end
+
+-- Setup dragging (only works when visible)
+setupDragging()
+
+-- Toggle GUI with DELETE key
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.Delete then
+        toggleGUI()
+    end
+end)
+
+-- Set initial state to show thug tab first
+title.Text = "ROBLOX MOCHA"
+info.Text = "ROBLOX MOCHA - Rekt LOL"
+playerListContainer.Visible = false
+antiContainer.Visible = false
+functionsContainer.Visible = false
+info.Visible = true
+
+-- Initial death tracking for Auto-SpawnPoint
+trackDeathPosition()
+
+-- Set default speed on startup
+task.wait(0.5)
+setPlayerSpeed(16)
+
+-- Restore saved state after reload
+restoreState()
+
+-- Collect all UI elements for fading (including watermark)
+task.wait(0.1)
+collectAllUIElements()
+
+-- Fade in animation on startup
+fadeIn()
+
+-- Cleanup on player respawn
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    if newChar then
+        local rootPart = newChar:FindFirstChild("HumanoidRootPart")
+        if rootPart then
+            humanoidRootPart = rootPart
+        end
+    end
+    currentCharacter = newChar
+    
+    if autoSpawnPointEnabled then
+        trackDeathPosition()
+    end
+    
+    if antiFlingEnabled and newChar then
+        disableCollisionsInstant(newChar)
+    end
+    
+    if noClipEnabled and newChar then
+        enableNoclipInstant(newChar)
+    end
+    
+    -- Re-apply speed on respawn
+    task.wait(0.1)
+    setPlayerSpeed(currentSpeed)
+end)
