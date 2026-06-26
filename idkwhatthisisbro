@@ -181,6 +181,7 @@ local antiKillEnabled = false
 local antiBorderEnabled = false
 local autoSpawnPointEnabled = false
 local lastDeathPosition = nil
+local lastDeathCFrame = nil
 local currentCharacter = character
 local currentSpeed = 16 -- Default walk speed
 
@@ -208,6 +209,7 @@ local speedLockConnection = nil
 -- GUI Visibility State
 local isVisible = true
 local fadeTween = nil
+local isFading = false
 
 -- Store original transparency values
 local originalValues = {}
@@ -224,6 +226,7 @@ local antiBorderConnection = nil
 local antiFlingConnection = nil
 local spawnConnection = nil
 local humanoidConnection = nil
+local characterPartsConnection = nil
 
 -- Store all UI elements for fading
 local allFadeElements = {}
@@ -321,10 +324,13 @@ end
 -- Fade In Function (Restores original values)
 local function fadeIn()
     if fadeTween then fadeTween:Cancel() end
+    isFading = true
     
     -- Make GUI visible and interactable
     mainFrame.Visible = true
     mainFrame.Active = true
+    mainFrame.Selectable = true
+    screenGui.Enabled = true
     
     -- Restore all elements to their original values
     for _, item in ipairs(allFadeElements) do
@@ -347,11 +353,16 @@ local function fadeIn()
             end
         end)
     end
+    
+    task.wait(0.1)
+    isFading = false
+    isVisible = true
 end
 
 -- Fade Out Function (Fully hides everything)
 local function fadeOut()
     if fadeTween then fadeTween:Cancel() end
+    isFading = true
     
     -- Fade all elements to transparent
     for _, item in ipairs(allFadeElements) do
@@ -378,18 +389,72 @@ local function fadeOut()
     -- After fade, disable the frame so it can't be interacted with
     task.wait(0.1)
     mainFrame.Active = false
+    mainFrame.Selectable = false
+    screenGui.Enabled = false
+    isFading = false
+    isVisible = false
 end
 
 -- Toggle GUI Function
 local function toggleGUI()
     if isVisible then
         fadeOut()
-        isVisible = false
     else
         fadeIn()
-        isVisible = true
     end
 end
+
+-- Block all mouse clicks on hidden GUI
+local function blockHiddenGUIClicks()
+    -- Create an invisible overlay that blocks clicks when GUI is hidden
+    local clickBlocker = Instance.new("Frame")
+    clickBlocker.Name = "ClickBlocker"
+    clickBlocker.Size = UDim2.new(1, 0, 1, 0)
+    clickBlocker.BackgroundTransparency = 1
+    clickBlocker.BackgroundColor3 = Color3.new(0, 0, 0)
+    clickBlocker.BorderSizePixel = 0
+    clickBlocker.Visible = false
+    clickBlocker.Selectable = true
+    clickBlocker.Active = true
+    clickBlocker.Parent = screenGui
+    
+    -- Override the toggle function to also control the click blocker
+    local originalToggle = toggleGUI
+    toggleGUI = function()
+        originalToggle()
+        if isVisible then
+            clickBlocker.Visible = false
+            clickBlocker.Selectable = false
+            clickBlocker.Active = false
+        else
+            clickBlocker.Visible = true
+            clickBlocker.Selectable = true
+            clickBlocker.Active = true
+        end
+    end
+    
+    -- Handle input events to prevent clicks from passing through
+    clickBlocker.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.MouseButton2 or
+           input.UserInputType == Enum.UserInputType.MouseButton3 then
+            input:Consume()
+        end
+    end)
+    
+    -- Allow right-click to pass through for camera movement
+    clickBlocker.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton2 then
+            -- Allow right-click to pass through for camera
+            return
+        end
+    end)
+    
+    return clickBlocker
+end
+
+-- Create the click blocker
+local clickBlocker = blockHiddenGUIClicks()
 
 -- Dragging functions (only works when GUI is visible)
 local function setupDragging()
@@ -642,7 +707,7 @@ local function toggleDynamicFly()
     end)
 end
 
--- Track death position
+-- FIXED AUTO-SPAWNPOINT
 local function trackDeathPosition()
     local char = getCharacter()
     if not char then return end
@@ -650,15 +715,21 @@ local function trackDeathPosition()
     local humanoid = char:FindFirstChild("Humanoid")
     if not humanoid then return end
     
+    -- Disconnect old connection if exists
     if humanoidConnection then
         humanoidConnection:Disconnect()
+        humanoidConnection = nil
     end
     
+    -- Connect to humanoid death event
     humanoidConnection = humanoid.Died:Connect(function()
         local rootPart = char:FindFirstChild("HumanoidRootPart")
         if rootPart and autoSpawnPointEnabled then
-            lastDeathPosition = rootPart.CFrame
+            -- Save both position and CFrame
+            lastDeathPosition = rootPart.Position
+            lastDeathCFrame = rootPart.CFrame
             info.Text = "✓ Death position saved!"
+            
             task.spawn(function()
                 task.wait(0.5)
                 if antiContainer and antiContainer.Visible then
@@ -669,18 +740,118 @@ local function trackDeathPosition()
     end)
 end
 
--- INSTANT ANTI-FLING
-local function disableCollisionsInstant(char)
+-- Function to teleport character to saved death position
+local function teleportToDeathPosition(newChar)
+    if not lastDeathPosition or not autoSpawnPointEnabled then return end
+    
+    -- Wait for character to fully load
+    task.wait(0.5)
+    
+    local rootPart = newChar:FindFirstChild("HumanoidRootPart")
+    if rootPart then
+        -- Use the saved CFrame for exact position and rotation
+        if lastDeathCFrame then
+            rootPart.CFrame = lastDeathCFrame
+            info.Text = "✓ Teleported to death location!"
+        else
+            -- Fallback to just position
+            rootPart.CFrame = CFrame.new(lastDeathPosition)
+            info.Text = "✓ Teleported to death location!"
+        end
+        
+        task.spawn(function()
+            task.wait(0.5)
+            if antiContainer and antiContainer.Visible then
+                info.Text = "Toggle switches for protection features"
+            end
+        end)
+    end
+end
+
+local function toggleAutoSpawnPoint()
+    autoSpawnPointEnabled = not autoSpawnPointEnabled
+    
+    if autoSpawnPointEnabled then
+        -- Start tracking deaths
+        trackDeathPosition()
+        
+        -- Connect to character added event for respawn teleport
+        if spawnConnection then 
+            spawnConnection:Disconnect() 
+            spawnConnection = nil
+        end
+        
+        spawnConnection = player.CharacterAdded:Connect(function(newChar)
+            -- Track deaths on the new character
+            trackDeathPosition()
+            
+            -- Teleport to death position if we have one saved
+            if lastDeathPosition then
+                teleportToDeathPosition(newChar)
+            end
+        end)
+        
+        info.Text = "✓ Auto-SpawnPoint ON - Tracking deaths"
+    else
+        -- Disable all connections
+        if spawnConnection then
+            spawnConnection:Disconnect()
+            spawnConnection = nil
+        end
+        if humanoidConnection then
+            humanoidConnection:Disconnect()
+            humanoidConnection = nil
+        end
+        
+        -- Clear saved positions
+        lastDeathPosition = nil
+        lastDeathCFrame = nil
+        info.Text = "✗ Auto-SpawnPoint OFF"
+    end
+    
+    task.spawn(function()
+        task.wait(0.3)
+        if antiContainer and antiContainer.Visible then
+            info.Text = "Toggle switches for protection features"
+        end
+    end)
+end
+
+-- IMPROVED ANTI-FLING - Permanently disables all collisions
+local function disableAllCollisions(char)
     if not char then return end
+    
+    -- Disable collisions on all existing parts
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             part.CanCollide = false
         end
     end
+    
+    -- Also disconnect any existing part added connection
+    if characterPartsConnection then
+        characterPartsConnection:Disconnect()
+        characterPartsConnection = nil
+    end
+    
+    -- Monitor for new parts being added and disable their collisions immediately
+    characterPartsConnection = char.DescendantAdded:Connect(function(part)
+        if part:IsA("BasePart") and antiFlingEnabled then
+            part.CanCollide = false
+        end
+    end)
 end
 
-local function enableCollisionsInstant(char)
+local function enableAllCollisions(char)
     if not char then return end
+    
+    -- Disconnect the part monitoring
+    if characterPartsConnection then
+        characterPartsConnection:Disconnect()
+        characterPartsConnection = nil
+    end
+    
+    -- Re-enable collisions on all parts except HumanoidRootPart
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
             part.CanCollide = true
@@ -694,24 +865,37 @@ local function toggleAntiFling()
     if antiFlingEnabled then
         local char = getCharacter()
         if char then
-            disableCollisionsInstant(char)
+            disableAllCollisions(char)
         end
         
-        if antiFlingConnection then antiFlingConnection:Disconnect() end
+        -- Remove old connection if exists
+        if antiFlingConnection then 
+            antiFlingConnection:Disconnect() 
+            antiFlingConnection = nil
+        end
+        
+        -- Connect to character added event
         antiFlingConnection = player.CharacterAdded:Connect(function(newChar)
-            disableCollisionsInstant(newChar)
+            disableAllCollisions(newChar)
         end)
         
-        info.Text = "✓ Anti-Fling ON"
+        info.Text = "✓ Anti-Fling ON - All collisions disabled"
     else
+        -- Disconnect character added event
         if antiFlingConnection then
             antiFlingConnection:Disconnect()
             antiFlingConnection = nil
         end
         
+        -- Disconnect part monitoring
+        if characterPartsConnection then
+            characterPartsConnection:Disconnect()
+            characterPartsConnection = nil
+        end
+        
         local char = getCharacter()
         if char then
-            enableCollisionsInstant(char)
+            enableAllCollisions(char)
         end
         
         info.Text = "✗ Anti-Fling OFF"
@@ -757,55 +941,6 @@ local function toggleAntiKill()
         end
         
         info.Text = "✗ Anti-Kill OFF"
-    end
-    
-    task.spawn(function()
-        task.wait(0.3)
-        if antiContainer and antiContainer.Visible then
-            info.Text = "Toggle switches for protection features"
-        end
-    end)
-end
-
--- AUTO-SPAWNPOINT
-local function toggleAutoSpawnPoint()
-    autoSpawnPointEnabled = not autoSpawnPointEnabled
-    
-    if autoSpawnPointEnabled then
-        trackDeathPosition()
-        
-        if spawnConnection then spawnConnection:Disconnect() end
-        spawnConnection = player.CharacterAdded:Connect(function(newChar)
-            trackDeathPosition()
-            
-            if lastDeathPosition then
-                task.wait(0.1)
-                local rootPart = newChar:FindFirstChild("HumanoidRootPart")
-                if rootPart then
-                    rootPart.CFrame = lastDeathPosition
-                    info.Text = "✓ Teleported to death location!"
-                    task.spawn(function()
-                        task.wait(0.5)
-                        if antiContainer and antiContainer.Visible then
-                            info.Text = "Toggle switches for protection features"
-                        end
-                    end)
-                end
-            end
-        end)
-        
-        info.Text = "✓ Auto-SpawnPoint ON - Tracking deaths"
-    else
-        if spawnConnection then
-            spawnConnection:Disconnect()
-            spawnConnection = nil
-        end
-        if humanoidConnection then
-            humanoidConnection:Disconnect()
-            humanoidConnection = nil
-        end
-        lastDeathPosition = nil
-        info.Text = "✗ Auto-SpawnPoint OFF"
     end
     
     task.spawn(function()
@@ -904,7 +1039,7 @@ local function createSpeedSlider()
     description.TextSize = 12
     description.TextXAlignment = Enum.TextXAlignment.Left
     description.Font = Enum.Font.Gotham
-    description.Text = "Press ENTER to apply (locked until changed)"
+    description.Text = ""
     description.Parent = container
     
     -- Create textbox frame
@@ -1001,9 +1136,9 @@ local function createAntiToggleSwitch(buttonText, toggleFunction)
     elseif buttonText == "Auto-SpawnPoint" then
         description.Text = ""
     elseif buttonText == "Anti-Border" then
-        description.Text = "Walk through walls"
+        description.Text = ""
     elseif buttonText == "Dynamic Fly" then
-        description.Text = "Free movement with WASD/Space/Shift"
+        description.Text = ""
     end
     
     description.Parent = container
@@ -1157,7 +1292,9 @@ local function rejoinGame()
             antiBorderEnabled = antiBorderEnabled,
             autoSpawnPointEnabled = autoSpawnPointEnabled,
             currentSpeed = currentSpeed,
-            dynamicFlyEnabled = dynamicFlyEnabled
+            dynamicFlyEnabled = dynamicFlyEnabled,
+            lastDeathPosition = lastDeathPosition,
+            lastDeathCFrame = lastDeathCFrame
         }
         
         -- Save state to global for reload
@@ -1182,7 +1319,9 @@ local function serverSwitch()
             antiBorderEnabled = antiBorderEnabled,
             autoSpawnPointEnabled = autoSpawnPointEnabled,
             currentSpeed = currentSpeed,
-            dynamicFlyEnabled = dynamicFlyEnabled
+            dynamicFlyEnabled = dynamicFlyEnabled,
+            lastDeathPosition = lastDeathPosition,
+            lastDeathCFrame = lastDeathCFrame
         }
         
         -- Save state to global for reload
@@ -1232,6 +1371,12 @@ local function restoreState()
         end
         if _G.MenuState.dynamicFlyEnabled then
             toggleDynamicFly()
+        end
+        
+        -- Restore death position if it was saved
+        if _G.MenuState.lastDeathPosition then
+            lastDeathPosition = _G.MenuState.lastDeathPosition
+            lastDeathCFrame = _G.MenuState.lastDeathCFrame
         end
         
         _G.MenuState = nil
@@ -1616,7 +1761,7 @@ player.CharacterAdded:Connect(function(newChar)
     end
     
     if antiFlingEnabled and newChar then
-        disableCollisionsInstant(newChar)
+        disableAllCollisions(newChar)
     end
     
     if antiBorderEnabled and newChar then
