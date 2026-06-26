@@ -178,11 +178,32 @@ functionsLayout.Parent = functionsContainer
 -- ANTI FEATURES STATE
 local antiFlingEnabled = false
 local antiKillEnabled = false
-local noClipEnabled = false
+local antiBorderEnabled = false
 local autoSpawnPointEnabled = false
 local lastDeathPosition = nil
 local currentCharacter = character
 local currentSpeed = 16 -- Default walk speed
+
+-- Fly state
+local dynamicFlyEnabled = false
+local flyConnection = nil
+local flyBodyVelocity = nil
+local flyGyro = nil
+local flySpeed = 60
+
+-- Dynamic fly movement state
+local movement = {
+    W = false,
+    A = false,
+    S = false,
+    D = false,
+    Space = false,
+    Shift = false
+}
+
+-- Speed lock system
+local speedLock = true -- Always keep speed locked
+local speedLockConnection = nil
 
 -- GUI Visibility State
 local isVisible = true
@@ -199,7 +220,7 @@ local startPos
 
 -- Connections
 local respawnConnection = nil
-local noclipConnection = nil
+local antiBorderConnection = nil
 local antiFlingConnection = nil
 local spawnConnection = nil
 local humanoidConnection = nil
@@ -405,27 +426,220 @@ local function setupDragging()
     end)
 end
 
--- Function to set player speed
+-- SPEED LOCK SYSTEM - This keeps speed locked at all times
+local function startSpeedLock()
+    if speedLockConnection then
+        speedLockConnection:Disconnect()
+        speedLockConnection = nil
+    end
+    
+    -- Use RenderStepped to constantly enforce the speed
+    speedLockConnection = RunService.RenderStepped:Connect(function()
+        if not speedLock then return end
+        
+        local char = getCharacter()
+        if char then
+            local humanoid = char:FindFirstChild("Humanoid")
+            if humanoid then
+                -- Always set the speed to currentSpeed
+                if humanoid.WalkSpeed ~= currentSpeed then
+                    humanoid.WalkSpeed = currentSpeed
+                end
+            end
+        end
+    end)
+end
+
+-- Function to set player speed with permanent lock
 local function setPlayerSpeed(speed)
     currentSpeed = tonumber(speed) or 16
     -- Clamp speed between 1 and 500
     if currentSpeed < 1 then currentSpeed = 1 end
     if currentSpeed > 500 then currentSpeed = 500 end
     
+    -- Update humanoid immediately
     local char = getCharacter()
     local humanoid = char:FindFirstChild("Humanoid")
     if humanoid then
         humanoid.WalkSpeed = currentSpeed
-        info.Text = "✓ Speed set to: " .. currentSpeed
-        task.spawn(function()
-            task.wait(0.5)
-            if antiContainer and antiContainer.Visible then
-                info.Text = "Toggle switches for protection features"
-            elseif (not antiContainer or not antiContainer.Visible) and (not playerListContainer or not playerListContainer.Visible) then
-                info.Text = "ROBLOX MOCHA - Rekt LOL"
-            end
-        end)
     end
+    
+    -- Start speed lock to keep it permanent
+    startSpeedLock()
+    
+    info.Text = "✓ Speed set to: " .. currentSpeed .. " (Locked)"
+    task.spawn(function()
+        task.wait(0.5)
+        if antiContainer and antiContainer.Visible then
+            info.Text = "Toggle switches for protection features"
+        elseif (not antiContainer or not antiContainer.Visible) and (not playerListContainer or not playerListContainer.Visible) then
+            info.Text = "ROBLOX MOCHA - Rekt LOL"
+        end
+    end)
+end
+
+-- Also listen for humanoid changes to ensure speed stays locked
+local function monitorHumanoid()
+    local char = getCharacter()
+    if char then
+        local humanoid = char:FindFirstChild("Humanoid")
+        if humanoid then
+            -- Connect to AttributeChanged to catch speed changes
+            humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+                if speedLock then
+                    -- If speed changed externally, force it back
+                    if humanoid.WalkSpeed ~= currentSpeed then
+                        humanoid.WalkSpeed = currentSpeed
+                    end
+                end
+            end)
+        end
+    end
+end
+
+-- DYNAMIC FLY - Normal fly like Infinite Yield
+local function setupDynamicFlyInputs()
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        
+        if input.KeyCode == Enum.KeyCode.W then movement.W = true end
+        if input.KeyCode == Enum.KeyCode.A then movement.A = true end
+        if input.KeyCode == Enum.KeyCode.S then movement.S = true end
+        if input.KeyCode == Enum.KeyCode.D then movement.D = true end
+        if input.KeyCode == Enum.KeyCode.Space then movement.Space = true end
+        if input.KeyCode == Enum.KeyCode.LeftShift then movement.Shift = true end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.W then movement.W = false end
+        if input.KeyCode == Enum.KeyCode.A then movement.A = false end
+        if input.KeyCode == Enum.KeyCode.S then movement.S = false end
+        if input.KeyCode == Enum.KeyCode.D then movement.D = false end
+        if input.KeyCode == Enum.KeyCode.Space then movement.Space = false end
+        if input.KeyCode == Enum.KeyCode.LeftShift then movement.Shift = false end
+    end)
+end
+
+local function startDynamicFly()
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
+    end
+    
+    -- Setup the movement input handlers if not already done
+    if not _G.dynamicFlyInputsSetup then
+        setupDynamicFlyInputs()
+        _G.dynamicFlyInputsSetup = true
+    end
+    
+    flyConnection = RunService.RenderStepped:Connect(function()
+        if not dynamicFlyEnabled then return end
+        
+        local char = getCharacter()
+        if not char then return end
+        
+        local humanoid = char:FindFirstChild("Humanoid")
+        local rootPart = char:FindFirstChild("HumanoidRootPart")
+        local camera = workspace.CurrentCamera
+        
+        if not humanoid or not rootPart or not camera then return end
+        
+        -- Create or get BodyVelocity
+        local bodyVelocity = rootPart:FindFirstChild("FlyBodyVelocity")
+        if not bodyVelocity then
+            bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.Name = "FlyBodyVelocity"
+            bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+            bodyVelocity.Velocity = Vector3.zero
+            bodyVelocity.Parent = rootPart
+        end
+        
+        -- Create or get BodyGyro
+        local bodyGyro = rootPart:FindFirstChild("FlyBodyGyro")
+        if not bodyGyro then
+            bodyGyro = Instance.new("BodyGyro")
+            bodyGyro.Name = "FlyBodyGyro"
+            bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+            bodyGyro.P = 10000
+            bodyGyro.CFrame = rootPart.CFrame
+            bodyGyro.Parent = rootPart
+        end
+        
+        -- Calculate movement direction
+        local direction = Vector3.zero
+        
+        if movement.W then direction = direction + camera.CFrame.LookVector end
+        if movement.S then direction = direction - camera.CFrame.LookVector end
+        if movement.A then direction = direction - camera.CFrame.RightVector end
+        if movement.D then direction = direction + camera.CFrame.RightVector end
+        if movement.Space then direction = direction + Vector3.new(0, 1, 0) end
+        if movement.Shift then direction = direction - Vector3.new(0, 1, 0) end
+        
+        if direction.Magnitude > 0 then
+            direction = direction.Unit * flySpeed
+        end
+        
+        bodyVelocity.Velocity = direction
+        bodyGyro.CFrame = camera.CFrame
+        humanoid.PlatformStand = true
+        
+        -- Store references for cleanup
+        flyBodyVelocity = bodyVelocity
+        flyGyro = bodyGyro
+    end)
+end
+
+local function stopDynamicFly()
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
+    end
+    
+    local char = getCharacter()
+    if char then
+        local humanoid = char:FindFirstChild("Humanoid")
+        local rootPart = char:FindFirstChild("HumanoidRootPart")
+        
+        if humanoid then
+            humanoid.PlatformStand = false
+        end
+        
+        -- Remove body velocity and gyro
+        if rootPart then
+            for _, child in ipairs(rootPart:GetChildren()) do
+                if child:IsA("BodyVelocity") or child:IsA("BodyGyro") then
+                    child:Destroy()
+                end
+            end
+        end
+    end
+    
+    -- Reset movement state
+    movement.W = false
+    movement.A = false
+    movement.S = false
+    movement.D = false
+    movement.Space = false
+    movement.Shift = false
+end
+
+local function toggleDynamicFly()
+    dynamicFlyEnabled = not dynamicFlyEnabled
+    
+    if dynamicFlyEnabled then
+        startDynamicFly()
+        info.Text = "✓ Dynamic Fly ON - Use WASD/Space/Shift to move"
+    else
+        stopDynamicFly()
+        info.Text = "✗ Dynamic Fly OFF"
+    end
+    
+    task.spawn(function()
+        task.wait(0.3)
+        if antiContainer and antiContainer.Visible then
+            info.Text = "Toggle switches for protection features"
+        end
+    end)
 end
 
 -- Track death position
@@ -602,8 +816,8 @@ local function toggleAutoSpawnPoint()
     end)
 end
 
--- INSTANT NO-CLIP
-local function enableNoclipInstant(char)
+-- INSTANT ANTI-BORDER (formerly No-Clip)
+local function enableAntiBorderInstant(char)
     if not char then return end
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
@@ -612,18 +826,18 @@ local function enableNoclipInstant(char)
     end
 end
 
-local function toggleNoClip()
-    noClipEnabled = not noClipEnabled
+local function toggleAntiBorder()
+    antiBorderEnabled = not antiBorderEnabled
     
-    if noClipEnabled then
+    if antiBorderEnabled then
         local char = getCharacter()
         if char then
-            enableNoclipInstant(char)
+            enableAntiBorderInstant(char)
         end
         
-        if noclipConnection then noclipConnection:Disconnect() end
-        noclipConnection = RunService.RenderStepped:Connect(function()
-            if noClipEnabled then
+        if antiBorderConnection then antiBorderConnection:Disconnect() end
+        antiBorderConnection = RunService.RenderStepped:Connect(function()
+            if antiBorderEnabled then
                 local char = getCharacter()
                 if char then
                     for _, part in ipairs(char:GetDescendants()) do
@@ -635,11 +849,11 @@ local function toggleNoClip()
             end
         end)
         
-        info.Text = "✓ No-Clip ON"
+        info.Text = "✓ Anti-Border ON"
     else
-        if noclipConnection then
-            noclipConnection:Disconnect()
-            noclipConnection = nil
+        if antiBorderConnection then
+            antiBorderConnection:Disconnect()
+            antiBorderConnection = nil
         end
         
         local char = getCharacter()
@@ -651,7 +865,7 @@ local function toggleNoClip()
             end
         end
         
-        info.Text = "✗ No-Clip OFF"
+        info.Text = "✗ Anti-Border OFF"
     end
     
     task.spawn(function()
@@ -690,7 +904,7 @@ local function createSpeedSlider()
     description.TextSize = 12
     description.TextXAlignment = Enum.TextXAlignment.Left
     description.Font = Enum.Font.Gotham
-    description.Text = ""
+    description.Text = "Press ENTER to apply (locked until changed)"
     description.Parent = container
     
     -- Create textbox frame
@@ -786,8 +1000,10 @@ local function createAntiToggleSwitch(buttonText, toggleFunction)
         description.Text = ""
     elseif buttonText == "Auto-SpawnPoint" then
         description.Text = ""
-    elseif buttonText == "No-Clip" then
-        description.Text = ""
+    elseif buttonText == "Anti-Border" then
+        description.Text = "Walk through walls"
+    elseif buttonText == "Dynamic Fly" then
+        description.Text = "Free movement with WASD/Space/Shift"
     end
     
     description.Parent = container
@@ -846,14 +1062,16 @@ end
 local antiFlingSwitch = createAntiToggleSwitch("Anti-Fling", toggleAntiFling)
 local antiKillSwitch = createAntiToggleSwitch("Anti-Kill", toggleAntiKill)
 local autoSpawnPointSwitch = createAntiToggleSwitch("Auto-SpawnPoint", toggleAutoSpawnPoint)
-local noClipSwitch = createAntiToggleSwitch("No-Clip", toggleNoClip)
+local antiBorderSwitch = createAntiToggleSwitch("Anti-Border", toggleAntiBorder)
+local dynamicFlySwitch = createAntiToggleSwitch("Dynamic Fly", toggleDynamicFly)
 
 antiFlingSwitch.Parent = antiContainer
 antiKillSwitch.Parent = antiContainer
 autoSpawnPointSwitch.Parent = antiContainer
-noClipSwitch.Parent = antiContainer
+antiBorderSwitch.Parent = antiContainer
+dynamicFlySwitch.Parent = antiContainer
 
--- Create Speed Slider (below No-Clip)
+-- Create Speed Slider (after Anti-Border)
 local speedSlider = createSpeedSlider()
 speedSlider.Parent = antiContainer
 
@@ -936,9 +1154,10 @@ local function rejoinGame()
         local stateToSave = {
             antiFlingEnabled = antiFlingEnabled,
             antiKillEnabled = antiKillEnabled,
-            noClipEnabled = noClipEnabled,
+            antiBorderEnabled = antiBorderEnabled,
             autoSpawnPointEnabled = autoSpawnPointEnabled,
-            currentSpeed = currentSpeed
+            currentSpeed = currentSpeed,
+            dynamicFlyEnabled = dynamicFlyEnabled
         }
         
         -- Save state to global for reload
@@ -960,9 +1179,10 @@ local function serverSwitch()
         local stateToSave = {
             antiFlingEnabled = antiFlingEnabled,
             antiKillEnabled = antiKillEnabled,
-            noClipEnabled = noClipEnabled,
+            antiBorderEnabled = antiBorderEnabled,
             autoSpawnPointEnabled = autoSpawnPointEnabled,
-            currentSpeed = currentSpeed
+            currentSpeed = currentSpeed,
+            dynamicFlyEnabled = dynamicFlyEnabled
         }
         
         -- Save state to global for reload
@@ -1001,14 +1221,17 @@ local function restoreState()
         if _G.MenuState.antiKillEnabled then
             toggleAntiKill()
         end
-        if _G.MenuState.noClipEnabled then
-            toggleNoClip()
+        if _G.MenuState.antiBorderEnabled then
+            toggleAntiBorder()
         end
         if _G.MenuState.autoSpawnPointEnabled then
             toggleAutoSpawnPoint()
         end
         if _G.MenuState.currentSpeed then
             setPlayerSpeed(_G.MenuState.currentSpeed)
+        end
+        if _G.MenuState.dynamicFlyEnabled then
+            toggleDynamicFly()
         end
         
         _G.MenuState = nil
@@ -1366,6 +1589,10 @@ collectAllUIElements()
 -- Fade in animation on startup
 fadeIn()
 
+-- Monitor humanoid for speed changes
+task.wait(0.1)
+monitorHumanoid()
+
 -- Cleanup on player respawn
 player.CharacterAdded:Connect(function(newChar)
     character = newChar
@@ -1374,6 +1601,13 @@ player.CharacterAdded:Connect(function(newChar)
         if rootPart then
             humanoidRootPart = rootPart
         end
+        
+        -- Monitor the new humanoid
+        monitorHumanoid()
+        
+        -- Re-apply speed and restart lock
+        task.wait(0.1)
+        setPlayerSpeed(currentSpeed)
     end
     currentCharacter = newChar
     
@@ -1385,11 +1619,12 @@ player.CharacterAdded:Connect(function(newChar)
         disableCollisionsInstant(newChar)
     end
     
-    if noClipEnabled and newChar then
-        enableNoclipInstant(newChar)
+    if antiBorderEnabled and newChar then
+        enableAntiBorderInstant(newChar)
     end
     
-    -- Re-apply speed on respawn
-    task.wait(0.1)
-    setPlayerSpeed(currentSpeed)
+    -- Re-apply fly state on respawn
+    if dynamicFlyEnabled and newChar then
+        startDynamicFly()
+    end
 end)
