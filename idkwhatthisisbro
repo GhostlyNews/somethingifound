@@ -95,7 +95,7 @@ local info = Instance.new("TextLabel")
 info.Size = UDim2.new(1, -10, 1, -45)
 info.Position = UDim2.fromOffset(5, 40)
 info.BackgroundTransparency = 1
-info.Text = "ROBLOX MOCHA - Rekt LOL"
+info.Text = "ROBLOX MOCHA "
 info.TextWrapped = true
 info.TextColor3 = Color3.fromRGB(200, 200, 255)
 info.TextScaled = true
@@ -181,7 +181,6 @@ local antiKillEnabled = false
 local antiBorderEnabled = false
 local autoSpawnPointEnabled = false
 local lastDeathPosition = nil
-local lastDeathCFrame = nil
 local currentCharacter = character
 local currentSpeed = 16 -- Default walk speed
 
@@ -209,7 +208,6 @@ local speedLockConnection = nil
 -- GUI Visibility State
 local isVisible = true
 local fadeTween = nil
-local isFading = false
 
 -- Store original transparency values
 local originalValues = {}
@@ -226,7 +224,6 @@ local antiBorderConnection = nil
 local antiFlingConnection = nil
 local spawnConnection = nil
 local humanoidConnection = nil
-local characterPartsConnection = nil
 
 -- Store all UI elements for fading
 local allFadeElements = {}
@@ -324,13 +321,11 @@ end
 -- Fade In Function (Restores original values)
 local function fadeIn()
     if fadeTween then fadeTween:Cancel() end
-    isFading = true
     
     -- Make GUI visible and interactable
     mainFrame.Visible = true
     mainFrame.Active = true
-    mainFrame.Selectable = true
-    screenGui.Enabled = true
+    mainFrame.Visible = true -- Ensure visibility
     
     -- Restore all elements to their original values
     for _, item in ipairs(allFadeElements) do
@@ -353,16 +348,11 @@ local function fadeIn()
             end
         end)
     end
-    
-    task.wait(0.1)
-    isFading = false
-    isVisible = true
 end
 
 -- Fade Out Function (Fully hides everything)
 local function fadeOut()
     if fadeTween then fadeTween:Cancel() end
-    isFading = true
     
     -- Fade all elements to transparent
     for _, item in ipairs(allFadeElements) do
@@ -389,72 +379,24 @@ local function fadeOut()
     -- After fade, disable the frame so it can't be interacted with
     task.wait(0.1)
     mainFrame.Active = false
-    mainFrame.Selectable = false
-    screenGui.Enabled = false
-    isFading = false
-    isVisible = false
+    mainFrame.Visible = false -- Hide completely to block clicks
 end
 
 -- Toggle GUI Function
 local function toggleGUI()
     if isVisible then
         fadeOut()
+        isVisible = false
     else
         fadeIn()
+        isVisible = true
     end
 end
 
--- Block all mouse clicks on hidden GUI
-local function blockHiddenGUIClicks()
-    -- Create an invisible overlay that blocks clicks when GUI is hidden
-    local clickBlocker = Instance.new("Frame")
-    clickBlocker.Name = "ClickBlocker"
-    clickBlocker.Size = UDim2.new(1, 0, 1, 0)
-    clickBlocker.BackgroundTransparency = 1
-    clickBlocker.BackgroundColor3 = Color3.new(0, 0, 0)
-    clickBlocker.BorderSizePixel = 0
-    clickBlocker.Visible = false
-    clickBlocker.Selectable = true
-    clickBlocker.Active = true
-    clickBlocker.Parent = screenGui
-    
-    -- Override the toggle function to also control the click blocker
-    local originalToggle = toggleGUI
-    toggleGUI = function()
-        originalToggle()
-        if isVisible then
-            clickBlocker.Visible = false
-            clickBlocker.Selectable = false
-            clickBlocker.Active = false
-        else
-            clickBlocker.Visible = true
-            clickBlocker.Selectable = true
-            clickBlocker.Active = true
-        end
-    end
-    
-    -- Handle input events to prevent clicks from passing through
-    clickBlocker.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
-           input.UserInputType == Enum.UserInputType.MouseButton2 or
-           input.UserInputType == Enum.UserInputType.MouseButton3 then
-            input:Consume()
-        end
-    end)
-    
-    -- Allow right-click to pass through for camera movement
-    clickBlocker.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton2 then
-            -- Allow right-click to pass through for camera
-            return
-        end
-    end)
-    
-    return clickBlocker
+-- Check if GUI is visible function
+local function isGUIVisible()
+    return isVisible
 end
-
--- Create the click blocker
-local clickBlocker = blockHiddenGUIClicks()
 
 -- Dragging functions (only works when GUI is visible)
 local function setupDragging()
@@ -535,10 +477,10 @@ local function setPlayerSpeed(speed)
     info.Text = "✓ Speed set to: " .. currentSpeed .. " (Locked)"
     task.spawn(function()
         task.wait(0.5)
-        if antiContainer and antiContainer.Visible then
+        if antiContainer and antiContainer.Visible and isVisible then
             info.Text = "Toggle switches for protection features"
-        elseif (not antiContainer or not antiContainer.Visible) and (not playerListContainer or not playerListContainer.Visible) then
-            info.Text = "ROBLOX MOCHA - Rekt LOL"
+        elseif (not antiContainer or not antiContainer.Visible) and (not playerListContainer or not playerListContainer.Visible) and isVisible then
+            info.Text = "ROBLOX MOCHA"
         end
     end)
 end
@@ -689,6 +631,8 @@ local function stopDynamicFly()
 end
 
 local function toggleDynamicFly()
+    if not isGUIVisible() then return end -- Prevent toggling when hidden
+    
     dynamicFlyEnabled = not dynamicFlyEnabled
     
     if dynamicFlyEnabled then
@@ -701,13 +645,13 @@ local function toggleDynamicFly()
     
     task.spawn(function()
         task.wait(0.3)
-        if antiContainer and antiContainer.Visible then
+        if antiContainer and antiContainer.Visible and isVisible then
             info.Text = "Toggle switches for protection features"
         end
     end)
 end
 
--- FIXED AUTO-SPAWNPOINT
+-- Track death position
 local function trackDeathPosition()
     local char = getCharacter()
     if not char then return end
@@ -715,24 +659,18 @@ local function trackDeathPosition()
     local humanoid = char:FindFirstChild("Humanoid")
     if not humanoid then return end
     
-    -- Disconnect old connection if exists
     if humanoidConnection then
         humanoidConnection:Disconnect()
-        humanoidConnection = nil
     end
     
-    -- Connect to humanoid death event
     humanoidConnection = humanoid.Died:Connect(function()
         local rootPart = char:FindFirstChild("HumanoidRootPart")
         if rootPart and autoSpawnPointEnabled then
-            -- Save both position and CFrame
-            lastDeathPosition = rootPart.Position
-            lastDeathCFrame = rootPart.CFrame
+            lastDeathPosition = rootPart.CFrame
             info.Text = "✓ Death position saved!"
-            
             task.spawn(function()
                 task.wait(0.5)
-                if antiContainer and antiContainer.Visible then
+                if antiContainer and antiContainer.Visible and isVisible then
                     info.Text = "Toggle switches for protection features"
                 end
             end)
@@ -740,118 +678,18 @@ local function trackDeathPosition()
     end)
 end
 
--- Function to teleport character to saved death position
-local function teleportToDeathPosition(newChar)
-    if not lastDeathPosition or not autoSpawnPointEnabled then return end
-    
-    -- Wait for character to fully load
-    task.wait(0.5)
-    
-    local rootPart = newChar:FindFirstChild("HumanoidRootPart")
-    if rootPart then
-        -- Use the saved CFrame for exact position and rotation
-        if lastDeathCFrame then
-            rootPart.CFrame = lastDeathCFrame
-            info.Text = "✓ Teleported to death location!"
-        else
-            -- Fallback to just position
-            rootPart.CFrame = CFrame.new(lastDeathPosition)
-            info.Text = "✓ Teleported to death location!"
-        end
-        
-        task.spawn(function()
-            task.wait(0.5)
-            if antiContainer and antiContainer.Visible then
-                info.Text = "Toggle switches for protection features"
-            end
-        end)
-    end
-end
-
-local function toggleAutoSpawnPoint()
-    autoSpawnPointEnabled = not autoSpawnPointEnabled
-    
-    if autoSpawnPointEnabled then
-        -- Start tracking deaths
-        trackDeathPosition()
-        
-        -- Connect to character added event for respawn teleport
-        if spawnConnection then 
-            spawnConnection:Disconnect() 
-            spawnConnection = nil
-        end
-        
-        spawnConnection = player.CharacterAdded:Connect(function(newChar)
-            -- Track deaths on the new character
-            trackDeathPosition()
-            
-            -- Teleport to death position if we have one saved
-            if lastDeathPosition then
-                teleportToDeathPosition(newChar)
-            end
-        end)
-        
-        info.Text = "✓ Auto-SpawnPoint ON - Tracking deaths"
-    else
-        -- Disable all connections
-        if spawnConnection then
-            spawnConnection:Disconnect()
-            spawnConnection = nil
-        end
-        if humanoidConnection then
-            humanoidConnection:Disconnect()
-            humanoidConnection = nil
-        end
-        
-        -- Clear saved positions
-        lastDeathPosition = nil
-        lastDeathCFrame = nil
-        info.Text = "✗ Auto-SpawnPoint OFF"
-    end
-    
-    task.spawn(function()
-        task.wait(0.3)
-        if antiContainer and antiContainer.Visible then
-            info.Text = "Toggle switches for protection features"
-        end
-    end)
-end
-
--- IMPROVED ANTI-FLING - Permanently disables all collisions
-local function disableAllCollisions(char)
+-- INSTANT ANTI-FLING
+local function disableCollisionsInstant(char)
     if not char then return end
-    
-    -- Disable collisions on all existing parts
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             part.CanCollide = false
         end
     end
-    
-    -- Also disconnect any existing part added connection
-    if characterPartsConnection then
-        characterPartsConnection:Disconnect()
-        characterPartsConnection = nil
-    end
-    
-    -- Monitor for new parts being added and disable their collisions immediately
-    characterPartsConnection = char.DescendantAdded:Connect(function(part)
-        if part:IsA("BasePart") and antiFlingEnabled then
-            part.CanCollide = false
-        end
-    end)
 end
 
-local function enableAllCollisions(char)
+local function enableCollisionsInstant(char)
     if not char then return end
-    
-    -- Disconnect the part monitoring
-    if characterPartsConnection then
-        characterPartsConnection:Disconnect()
-        characterPartsConnection = nil
-    end
-    
-    -- Re-enable collisions on all parts except HumanoidRootPart
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
             part.CanCollide = true
@@ -860,42 +698,31 @@ local function enableAllCollisions(char)
 end
 
 local function toggleAntiFling()
+    if not isGUIVisible() then return end -- Prevent toggling when hidden
+    
     antiFlingEnabled = not antiFlingEnabled
     
     if antiFlingEnabled then
         local char = getCharacter()
         if char then
-            disableAllCollisions(char)
+            disableCollisionsInstant(char)
         end
         
-        -- Remove old connection if exists
-        if antiFlingConnection then 
-            antiFlingConnection:Disconnect() 
-            antiFlingConnection = nil
-        end
-        
-        -- Connect to character added event
+        if antiFlingConnection then antiFlingConnection:Disconnect() end
         antiFlingConnection = player.CharacterAdded:Connect(function(newChar)
-            disableAllCollisions(newChar)
+            disableCollisionsInstant(newChar)
         end)
         
-        info.Text = "✓ Anti-Fling ON - All collisions disabled"
+        info.Text = "✓ Anti-Fling ON"
     else
-        -- Disconnect character added event
         if antiFlingConnection then
             antiFlingConnection:Disconnect()
             antiFlingConnection = nil
         end
         
-        -- Disconnect part monitoring
-        if characterPartsConnection then
-            characterPartsConnection:Disconnect()
-            characterPartsConnection = nil
-        end
-        
         local char = getCharacter()
         if char then
-            enableAllCollisions(char)
+            enableCollisionsInstant(char)
         end
         
         info.Text = "✗ Anti-Fling OFF"
@@ -903,16 +730,18 @@ local function toggleAntiFling()
     
     task.spawn(function()
         task.wait(0.3)
-        if antiContainer and antiContainer.Visible then
+        if antiContainer and antiContainer.Visible and isVisible then
             info.Text = "Toggle switches for protection features"
-        elseif (not antiContainer or not antiContainer.Visible) and (not playerListContainer or not playerListContainer.Visible) then
-            info.Text = "ROBLOX MOCHA - Rekt LOL"
+        elseif (not antiContainer or not antiContainer.Visible) and (not playerListContainer or not playerListContainer.Visible) and isVisible then
+            info.Text = "ROBLOX MOCHA"
         end
     end)
 end
 
 -- INSTANT ANTI-KILL
 local function toggleAntiKill()
+    if not isGUIVisible() then return end -- Prevent toggling when hidden
+    
     antiKillEnabled = not antiKillEnabled
     
     if antiKillEnabled then
@@ -945,7 +774,58 @@ local function toggleAntiKill()
     
     task.spawn(function()
         task.wait(0.3)
-        if antiContainer and antiContainer.Visible then
+        if antiContainer and antiContainer.Visible and isVisible then
+            info.Text = "Toggle switches for protection features"
+        end
+    end)
+end
+
+-- AUTO-SPAWNPOINT
+local function toggleAutoSpawnPoint()
+    if not isGUIVisible() then return end -- Prevent toggling when hidden
+    
+    autoSpawnPointEnabled = not autoSpawnPointEnabled
+    
+    if autoSpawnPointEnabled then
+        trackDeathPosition()
+        
+        if spawnConnection then spawnConnection:Disconnect() end
+        spawnConnection = player.CharacterAdded:Connect(function(newChar)
+            trackDeathPosition()
+            
+            if lastDeathPosition then
+                task.wait(0.1)
+                local rootPart = newChar:FindFirstChild("HumanoidRootPart")
+                if rootPart then
+                    rootPart.CFrame = lastDeathPosition
+                    info.Text = "✓ Teleported to death location!"
+                    task.spawn(function()
+                        task.wait(0.5)
+                        if antiContainer and antiContainer.Visible and isVisible then
+                            info.Text = "Toggle switches for protection features"
+                        end
+                    end)
+                end
+            end
+        end)
+        
+        info.Text = "✓ Auto-SpawnPoint ON - Tracking deaths"
+    else
+        if spawnConnection then
+            spawnConnection:Disconnect()
+            spawnConnection = nil
+        end
+        if humanoidConnection then
+            humanoidConnection:Disconnect()
+            humanoidConnection = nil
+        end
+        lastDeathPosition = nil
+        info.Text = "✗ Auto-SpawnPoint OFF"
+    end
+    
+    task.spawn(function()
+        task.wait(0.3)
+        if antiContainer and antiContainer.Visible and isVisible then
             info.Text = "Toggle switches for protection features"
         end
     end)
@@ -962,6 +842,8 @@ local function enableAntiBorderInstant(char)
 end
 
 local function toggleAntiBorder()
+    if not isGUIVisible() then return end -- Prevent toggling when hidden
+    
     antiBorderEnabled = not antiBorderEnabled
     
     if antiBorderEnabled then
@@ -1005,7 +887,7 @@ local function toggleAntiBorder()
     
     task.spawn(function()
         task.wait(0.3)
-        if antiContainer and antiContainer.Visible then
+        if antiContainer and antiContainer.Visible and isVisible then
             info.Text = "Toggle switches for protection features"
         end
     end)
@@ -1039,7 +921,7 @@ local function createSpeedSlider()
     description.TextSize = 12
     description.TextXAlignment = Enum.TextXAlignment.Left
     description.Font = Enum.Font.Gotham
-    description.Text = ""
+    description.Text = "Press ENTER to apply (locked until changed)"
     description.Parent = container
     
     -- Create textbox frame
@@ -1076,6 +958,11 @@ local function createSpeedSlider()
     
     -- Apply on enter key only
     textBox.FocusLost:Connect(function(enterPressed)
+        if not isGUIVisible() then 
+            textBox.Text = tostring(currentSpeed)
+            return 
+        end
+        
         if enterPressed then
             local speedValue = tonumber(textBox.Text)
             if speedValue and speedValue >= 1 and speedValue <= 500 then
@@ -1086,7 +973,7 @@ local function createSpeedSlider()
                 textBox.Text = tostring(currentSpeed)
                 task.spawn(function()
                     task.wait(0.5)
-                    if antiContainer and antiContainer.Visible then
+                    if antiContainer and antiContainer.Visible and isVisible then
                         info.Text = "Toggle switches for protection features"
                     end
                 end)
@@ -1136,9 +1023,9 @@ local function createAntiToggleSwitch(buttonText, toggleFunction)
     elseif buttonText == "Auto-SpawnPoint" then
         description.Text = ""
     elseif buttonText == "Anti-Border" then
-        description.Text = ""
+        description.Text = "Walk through walls"
     elseif buttonText == "Dynamic Fly" then
-        description.Text = ""
+        description.Text = "Free movement with WASD/Space/Shift"
     end
     
     description.Parent = container
@@ -1185,6 +1072,7 @@ local function createAntiToggleSwitch(buttonText, toggleFunction)
     clickDetector.Parent = container
     
     clickDetector.MouseButton1Click:Connect(function()
+        if not isGUIVisible() then return end -- Prevent toggling when hidden
         isOn = not isOn
         toggleFunction()
         animateSwitch(isOn)
@@ -1252,6 +1140,7 @@ local function createFunctionButton(buttonText, buttonColor, clickFunction, desc
     button.Parent = container
     
     button.MouseButton1Click:Connect(function()
+        if not isGUIVisible() then return end -- Prevent clicking when hidden
         pcall(clickFunction)
     end)
     
@@ -1268,12 +1157,13 @@ end
 
 -- FUNCTIONS BUTTON ACTIONS WITH AUTO-RELOAD
 local function executeInfYield()
+    if not isGUIVisible() then return end
     pcall(function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
         info.Text = "✓ Infinite Yield Executed!"
         task.spawn(function()
             task.wait(0.5)
-            if functionsContainer and functionsContainer.Visible then
+            if functionsContainer and functionsContainer.Visible and isVisible then
                 info.Text = "Functions tab - Click buttons to execute"
             end
         end)
@@ -1281,6 +1171,7 @@ local function executeInfYield()
 end
 
 local function rejoinGame()
+    if not isGUIVisible() then return end
     info.Text = "✓ Rejoining and reloading script..."
     task.spawn(function()
         task.wait(0.5)
@@ -1292,9 +1183,7 @@ local function rejoinGame()
             antiBorderEnabled = antiBorderEnabled,
             autoSpawnPointEnabled = autoSpawnPointEnabled,
             currentSpeed = currentSpeed,
-            dynamicFlyEnabled = dynamicFlyEnabled,
-            lastDeathPosition = lastDeathPosition,
-            lastDeathCFrame = lastDeathCFrame
+            dynamicFlyEnabled = dynamicFlyEnabled
         }
         
         -- Save state to global for reload
@@ -1308,6 +1197,7 @@ local function rejoinGame()
 end
 
 local function serverSwitch()
+    if not isGUIVisible() then return end
     info.Text = "✓ Switching servers and reloading script..."
     task.spawn(function()
         task.wait(0.5)
@@ -1319,9 +1209,7 @@ local function serverSwitch()
             antiBorderEnabled = antiBorderEnabled,
             autoSpawnPointEnabled = autoSpawnPointEnabled,
             currentSpeed = currentSpeed,
-            dynamicFlyEnabled = dynamicFlyEnabled,
-            lastDeathPosition = lastDeathPosition,
-            lastDeathCFrame = lastDeathCFrame
+            dynamicFlyEnabled = dynamicFlyEnabled
         }
         
         -- Save state to global for reload
@@ -1373,12 +1261,6 @@ local function restoreState()
             toggleDynamicFly()
         end
         
-        -- Restore death position if it was saved
-        if _G.MenuState.lastDeathPosition then
-            lastDeathPosition = _G.MenuState.lastDeathPosition
-            lastDeathCFrame = _G.MenuState.lastDeathCFrame
-        end
-        
         _G.MenuState = nil
     end
 end
@@ -1415,14 +1297,14 @@ end)
 
 -- TELEPORT FUNCTION (INSTANT)
 local function teleportToPlayer(targetPlayer)
-    if not targetPlayer then return end
+    if not targetPlayer or not isGUIVisible() then return end
     
     local targetCharacter = targetPlayer.Character
     if not targetCharacter then
         info.Text = "ERROR: No character"
         task.spawn(function()
             task.wait(0.5)
-            if playerListContainer and playerListContainer.Visible then
+            if playerListContainer and playerListContainer.Visible and isVisible then
                 info.Text = "Click any name = instant teleport"
             end
         end)
@@ -1434,7 +1316,7 @@ local function teleportToPlayer(targetPlayer)
         info.Text = "ERROR: No HumanoidRootPart"
         task.spawn(function()
             task.wait(0.5)
-            if playerListContainer and playerListContainer.Visible then
+            if playerListContainer and playerListContainer.Visible and isVisible then
                 info.Text = "Click any name = instant teleport"
             end
         end)
@@ -1446,7 +1328,7 @@ local function teleportToPlayer(targetPlayer)
         info.Text = "ERROR: Character not loaded"
         task.spawn(function()
             task.wait(0.5)
-            if playerListContainer and playerListContainer.Visible then
+            if playerListContainer and playerListContainer.Visible and isVisible then
                 info.Text = "Click any name = instant teleport"
             end
         end)
@@ -1458,7 +1340,7 @@ local function teleportToPlayer(targetPlayer)
         info.Text = "ERROR: Can't find HumanoidRootPart"
         task.spawn(function()
             task.wait(0.5)
-            if playerListContainer and playerListContainer.Visible then
+            if playerListContainer and playerListContainer.Visible and isVisible then
                 info.Text = "Click any name = instant teleport"
             end
         end)
@@ -1470,7 +1352,7 @@ local function teleportToPlayer(targetPlayer)
     
     task.spawn(function()
         task.wait(0.5)
-        if playerListContainer and playerListContainer.Visible then
+        if playerListContainer and playerListContainer.Visible and isVisible then
             info.Text = "Click any name = instant teleport"
         end
     end)
@@ -1510,14 +1392,18 @@ local function createPlayerButton(playerName, playerObject)
     end)
     
     button.MouseEnter:Connect(function()
-        button.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-        info.Text = "Click to teleport to " .. playerName
+        if isGUIVisible() then
+            button.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+            info.Text = "Click to teleport to " .. playerName
+        end
     end)
     
     button.MouseLeave:Connect(function()
-        button.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-        if playerListContainer and playerListContainer.Visible then
-            info.Text = "Click any name = instant teleport"
+        if isGUIVisible() then
+            button.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+            if playerListContainer and playerListContainer.Visible then
+                info.Text = "Click any name = instant teleport"
+            end
         end
     end)
     
@@ -1527,6 +1413,8 @@ end
 -- Function to refresh the entire player list
 local playerButtons = {}
 local function refreshPlayerList()
+    if not isGUIVisible() then return end
+    
     local currentPlayers = {}
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= player then
@@ -1563,13 +1451,13 @@ end
 
 -- Player join/leave handling
 Players.PlayerAdded:Connect(function(newPlayer)
-    if newPlayer ~= player then
+    if newPlayer ~= player and isGUIVisible() then
         refreshPlayerList()
     end
 end)
 
 Players.PlayerRemoving:Connect(function(leavingPlayer)
-    if leavingPlayer ~= player then
+    if leavingPlayer ~= player and isGUIVisible() then
         refreshPlayerList()
     end
 end)
@@ -1582,7 +1470,7 @@ refreshPlayerList()
 task.spawn(function()
     while true do
         task.wait(2)
-        if playerListContainer and playerListContainer.Visible then
+        if playerListContainer and playerListContainer.Visible and isGUIVisible() then
             refreshPlayerList()
         end
     end
@@ -1607,7 +1495,7 @@ local tabs = {
     {
         Name = "Thug",
         Title = "ROBLOX MOCHA",
-        Content = "ROBLOX MOCHA - Rekt LOL",
+        Content = "ROBLOX MOCHA",
         HasPlayerList = false,
         HasAnti = false,
         HasFunctions = false
@@ -1667,6 +1555,7 @@ for i, tab in ipairs(tabs) do
     buttonStroke.Parent = button
 
     button.MouseButton1Click:Connect(function()
+        if not isGUIVisible() then return end
         title.Text = tab.Title
         info.Text = tab.Content
         
@@ -1711,7 +1600,7 @@ end)
 
 -- Set initial state to show thug tab first
 title.Text = "ROBLOX MOCHA"
-info.Text = "ROBLOX MOCHA - Rekt LOL"
+info.Text = "ROBLOX MOCHA"
 playerListContainer.Visible = false
 antiContainer.Visible = false
 functionsContainer.Visible = false
@@ -1761,7 +1650,7 @@ player.CharacterAdded:Connect(function(newChar)
     end
     
     if antiFlingEnabled and newChar then
-        disableAllCollisions(newChar)
+        disableCollisionsInstant(newChar)
     end
     
     if antiBorderEnabled and newChar then
